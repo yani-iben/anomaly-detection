@@ -4,7 +4,9 @@ The primary challenge in translating the architecture from CloudFormation to Ter
 A secondary challenge was ensuring the user_data script remained idempotent and portable. While CloudFormation uses the Fn::Base64 and !Sub functions to inject variables like the Bucket Name, Terraform utilizes the ${} interpolation syntax. Translating the shell script required careful escaping of characters to ensure that the Python virtual environment and the GitHub repository cloning process remained consistent across both Infrastructure as Code (IaC) providers.
 
 
-2. The permission granting the SNS subscription authority to communicate with the API is located in the template.yaml under the SnsTopicPolicy resource (specifically starting at Line 35). The Statement block within this policy defines the Effect: Allow for the Action: sns:Publish. Critically, it specifies the Principal as the Service: s3.amazonaws.com. Without this specific resource policy, S3 would be able to "see" the event but would be forbidden from "publishing" the notification to the SNS Topic, effectively breaking the trigger for the FastAPI /notify endpoint.
+2. 
+
+The permission granting the SNS subscription authority to communicate with the API is located in the template.yaml under the SnsTopicPolicy resource (specifically starting at Line 35). The Statement block within this policy defines the Effect: Allow for the Action: sns:Publish. Critically, it specifies the Principal as the Service: s3.amazonaws.com. Without this specific resource policy, S3 would be able to "see" the event but would be forbidden from "publishing" the notification to the SNS Topic, effectively breaking the trigger for the FastAPI /notify endpoint.
 
 3. 
 
