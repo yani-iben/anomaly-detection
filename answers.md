@@ -1,0 +1,20 @@
+1. 
+The primary challenge in translating the architecture from CloudFormation to Terraform involved managing the implicit vs. explicit dependencies between the S3 bucket and the SNS topic. In CloudFormation, the !Ref and !Sub functions allow for a relatively fluid circular dependency where the bucket is aware of the SNS topic for notifications, while the SNS topic policy is restricted to that specific bucket. In Terraform, this required a more rigid sequence of resource blocks: defining the bucket first, then the SNS topic, and finally a separate aws_s3_bucket_notification resource to link them. This ensures that the SNS Topic Policy—which must include the Bucket ARN to follow security best practices—does not trigger a "cyclic dependency" error during the terraform apply phase.
+
+A secondary challenge was ensuring the user_data script remained idempotent and portable. While CloudFormation uses the Fn::Base64 and !Sub functions to inject variables like the Bucket Name, Terraform utilizes the ${} interpolation syntax. Translating the shell script required careful escaping of characters to ensure that the Python virtual environment and the GitHub repository cloning process remained consistent across both Infrastructure as Code (IaC) providers.
+
+
+2. The permission granting the SNS subscription authority to communicate with the API is located in the template.yaml under the SnsTopicPolicy resource (specifically starting at Line 35). The Statement block within this policy defines the Effect: Allow for the Action: sns:Publish. Critically, it specifies the Principal as the Service: s3.amazonaws.com. Without this specific resource policy, S3 would be able to "see" the event but would be forbidden from "publishing" the notification to the SNS Topic, effectively breaking the trigger for the FastAPI /notify endpoint.
+
+3. 
+
+The path of a CSV begins when it is written to the raw/ prefix; S3 detects the ObjectCreated event and sends a message to the SNS Topic. SNS then attempts an HTTP POST to the /notify endpoint on the EC2 instance. If the EC2 instance is down or the endpoint returns a 5xx error, SNS follows a standard exponential backoff retry policy, attempting to redeliver the message over several hours. To make this production-grade, I would implement a Dead Letter Queue (DLQ) using Amazon SQS. This would capture any failed notifications that exceed the retry limit, allowing for manual inspection or automated re-processing once the EC2 instance is restored, ensuring no sensor data is permanently lost due to transient downtime.
+
+
+4. 
+
+While the current policy uses a wildcard for convenience, the application only performs four specific operations: s3:GetObject (to download the raw CSV), s3:PutObject (to upload the processed CSV and the updated baseline.json), s3:ListBucket (to check for existing state), and s3:DeleteObject (if the app were configured to clean up raw files). A "least privilege" policy would replace the Action: s3:* with an array containing only these specific actions. Furthermore, the Resource block would be restricted to the specific bucket ARN and its contents (arn:aws:s3:::bucket-name/*), preventing the EC2 instance from ever interacting with other sensitive buckets in the same AWS account.
+
+5.
+
+To handle a 100x increase in volume, the single EC2 instance would become a bottleneck. The design would shift toward an Auto Scaling Group (ASG) of EC2 instances behind an Application Load Balancer (ALB). However, having multiple instances introduces a consistency challenge for baseline.json. If two instances process different files simultaneously, they might overwrite each other's updates in S3, leading to "lost updates." To solve this, the shared state should be moved from a flat file in S3 to Amazon DynamoDB, which supports Atomic Increments. This would allow multiple instances to update the rolling mean and standard deviation concurrently and safely, trading off the simplicity of a JSON file for the high-concurrency reliability of a NoSQL database.

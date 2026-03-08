@@ -1,0 +1,9 @@
+INFO:     Started server process [44379]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+INFO:     15.221.161.55:26665 - "POST /notify HTTP/1.1" 200 OK
+Processing: s3://ds5220-project1-data-917795609593/raw/sensors_20260308T171747.csv
+  Loaded 100 rows, columns: ['timestamp', 'temperature', 'humidity', 'pressure', 'wind_speed']
+  Done: 6/100 anomalies flagged
+INFO:     15.221.161.82:58395 - "POST /notify HTTP/1.1" 200 OK
